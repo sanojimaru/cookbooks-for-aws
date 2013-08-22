@@ -1,0 +1,1 @@
+default[:timezone][:zoneinfo] = "UTC"

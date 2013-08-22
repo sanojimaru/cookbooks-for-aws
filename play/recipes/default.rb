@@ -6,45 +6,27 @@
 #
 # All rights reserved - Do Not Redistribute
 #
-user = "nginx"
-group = "nginx"
-play_version = "2.1.3"
-play_prefix = "play-"
-play_install_dir = "/opt/www"
-play_home = "#{play_install_dir}/#{play_prefix}#{play_version}"
-play_archive_filename = "#{play_prefix}#{play_version}.zip"
-play_archive_filepath = "#{Chef::Config[:file_cache_path]}/#{play_archive_filename}"
-play_source_url = "http://downloads.typesafe.com/play/#{play_version}/#{play_archive_filename}"
+include_recipe "nginx"
+include_recipe "mysql"
 
-packages = [
-  "java-1.7.0-openjdk",
-  "mysql55-devel",
-  "mysql55-libs",
-  "mysql-connector-java",
-  "nginx",
-].each do |pkg|
-  package pkg do
-    action :install
-  end
+archive_file = "#{Chef::Config[:file_cache_path]}/play-#{node[:play][:version]}.zip"
+remote_file archive_file do
+  source "http://downloads.typesafe.com/play/#{node[:play][:version]}/play-#{node[:play][:version]}.zip"
 end
 
-remote_file play_archive_filepath do
-  source play_source_url
-end
-
-directory play_install_dir do
-  owner user
-  group group
+directory node[:play][:install_dir] do
+  owner node[:nginx][:user]
+  group node[:nginx][:group]
   mode "0755"
   recursive true
   action :create
 end
 
-execute "unzip #{play_archive_filepath} -d #{play_install_dir}" do
-  user user
-  group group
+execute "unzip #{archive_file} -d #{node[:play][:install_dir]}" do
+  user node[:nginx][:user]
+  group node[:nginx][:group]
   action :run
-  not_if{ File.exists?(play_home) }
+  not_if{ File.exists?(node[:play][:home]) }
 end
 
 template "/etc/profile.d/play.sh" do
@@ -53,6 +35,44 @@ template "/etc/profile.d/play.sh" do
   owner "root"
   group "root"
   variables({
-    :play_home => play_home
+    :home => node[:play][:home]
   })
+end
+
+template "/etc/init/#{node[:name]}.conf" do
+    source "upstart.conf.erb"
+    owner "root"
+    group "root"
+    mode 0755
+    variables({
+        home: node[:nginx][:document_root],
+        user: node[:nginx][:user],
+        group: node[:nginx][:group],
+    })
+end
+
+template "/etc/sudoers.d/play" do
+    source "sudoers.erb"
+    owner "root"
+    group "root"
+    mode 0440
+    variables({
+        user: node[:nginx][:user]
+    })
+end
+
+template "/etc/nginx/conf.d/play.conf" do
+    source "nginx.conf.erb"
+    owner "root"
+    group "root"
+    variables({
+        name: node[:name],
+        home: node[:nginx][:document_root],
+        user: node[:nginx][:user],
+        group: node[:nginx][:group],
+    })
+end
+
+service "nginx" do
+    action :reload
 end

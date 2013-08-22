@@ -24,7 +24,7 @@ users.each do |u|
   username = u['username'] || u['id']
 
   user username do
-    %w{username home authorized_keys}.each do |attr|
+    %w{username home shell}.each do |attr|
       send(attr, u[attr]) if u[attr]
     end
     action u['action'].to_sym if u['action']
@@ -34,6 +34,13 @@ users.each do |u|
     home_dir = u['home'] || "/home/#{username}"
     ssh_dir =  "#{home_dir}/.ssh"
     authorized_keys = "#{ssh_dir}/authorized_keys"
+
+    directory ssh_dir do
+      owner username
+      mode 0700
+      recursive true
+      action :create
+    end
 
     file authorized_keys do
       owner username
